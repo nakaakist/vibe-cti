@@ -1,13 +1,15 @@
 import { useAtom } from 'jotai'
 import type React from 'react'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { janusManager } from '@/services/janusManager'
 import { webrtcService } from '@/services/webrtc'
 import { wsService } from '@/services/websocket'
 import {
   callerIdAtom,
+  callStateAtom,
   isInCallAtom,
   isRegisteredAtom,
   localStreamAtom,
@@ -26,24 +28,22 @@ export const Softphone: React.FC = () => {
   const [_remoteStream, setRemoteStream] = useAtom(remoteStreamAtom)
   const [_wsConnection, setWsConnection] = useAtom(wsConnectionAtom)
   const [_peerConnection, setPeerConnection] = useAtom(peerConnectionAtom)
+  const [callState, setCallState] = useAtom(callStateAtom)
+  const [isConnecting, setIsConnecting] = useState(false)
 
   const localAudioRef = useRef<HTMLAudioElement>(null)
   const remoteAudioRef = useRef<HTMLAudioElement>(null)
 
   // 切断（useCallbackで定義を先に移動）
-  const handleHangup = useCallback(() => {
-    webrtcService.hangup()
+  const handleHangup = useCallback(async () => {
+    await janusManager.hangup()
     setPeerConnection(null)
     setRemoteStream(null)
-
-    wsService.send({
-      type: 'hangup',
-    })
-
     setIsInCall(false)
     setPhoneNumber('')
     setCallerId('')
-  }, [setPeerConnection, setRemoteStream, setIsInCall, setPhoneNumber, setCallerId])
+    setCallState('idle')
+  }, [setPeerConnection, setRemoteStream, setIsInCall, setPhoneNumber, setCallerId, setCallState])
 
   // WebRTC offer処理（着信時）（useCallbackで定義を先に移動）
   const handleOffer = useCallback(async (offer: RTCSessionDescriptionInit) => {
@@ -112,6 +112,8 @@ export const Softphone: React.FC = () => {
   // SIP登録
   const handleRegister = async () => {
     try {
+      setIsConnecting(true)
+
       // マイクアクセス取得
       const stream = await webrtcService.initializeMedia()
       setLocalStream(stream)
@@ -120,7 +122,10 @@ export const Softphone: React.FC = () => {
         localAudioRef.current.srcObject = stream
       }
 
-      // WebSocket接続
+      // Janus接続
+      await janusManager.connect()
+
+      // WebSocket接続（バックエンドAPIとの通信用）
       await wsService.connect()
       setWsConnection(wsService)
 
@@ -131,9 +136,11 @@ export const Softphone: React.FC = () => {
       })
 
       setIsRegistered(true)
+      setIsConnecting(false)
     } catch (error) {
       console.error('登録エラー:', error)
       alert(`登録に失敗しました: ${error}`)
+      setIsConnecting(false)
     }
   }
 
@@ -144,12 +151,14 @@ export const Softphone: React.FC = () => {
     })
 
     wsService.disconnect()
+    janusManager.disconnect()
     webrtcService.hangup()
 
     setWsConnection(null)
     setLocalStream(null)
     setIsRegistered(false)
-  }, [setWsConnection, setLocalStream, setIsRegistered])
+    setCallState('idle')
+  }, [setWsConnection, setLocalStream, setIsRegistered, setCallState])
 
   // 発信
   const handleCall = async () => {
@@ -159,40 +168,31 @@ export const Softphone: React.FC = () => {
     }
 
     try {
-      // WebRTC接続セットアップ
-      const pc = webrtcService.createPeerConnection((candidate) => {
-        wsService.send({
-          type: 'ice_candidate',
-          candidate: candidate,
-        })
-      })
+      setCallState('calling')
 
-      setPeerConnection(pc)
+      // Janus経由で発信
+      await janusManager.makeCall(phoneNumber)
 
-      // リモートストリーム設定
-      pc.ontrack = (event) => {
-        setRemoteStream(event.streams[0])
-        if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = event.streams[0]
+      // リモートストリーム監視
+      const checkRemoteStream = setInterval(() => {
+        const remoteStream = webrtcService.getRemoteStream()
+        if (remoteStream && remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = remoteStream
+          setRemoteStream(remoteStream)
+          clearInterval(checkRemoteStream)
         }
-      }
+      }, 100)
 
-      // SDP作成と送信
-      const offer = await webrtcService.createOffer()
-
-      wsService.send({
-        type: 'call',
-        number: phoneNumber,
-        sdp: offer,
-      })
+      // 30秒後にタイムアウト
+      setTimeout(() => clearInterval(checkRemoteStream), 30000)
 
       setIsInCall(true)
     } catch (error) {
       console.error('発信エラー:', error)
       alert(`発信に失敗しました: ${error}`)
+      setCallState('idle')
     }
   }
-
 
   // クリーンアップ
   useEffect(() => {
@@ -206,7 +206,10 @@ export const Softphone: React.FC = () => {
       <CardHeader>
         <CardTitle>ViBE CTI ソフトフォン</CardTitle>
         <CardDescription>
-          {isRegistered ? '登録済み' : '未登録'}
+          {isConnecting && '接続中...'}
+          {!isConnecting && (isRegistered ? '登録済み' : '未登録')}
+          {callState !== 'idle' &&
+            ` - ${callState === 'calling' ? '発信中...' : callState === 'ringing' ? '呼出中...' : callState === 'connected' ? '通話中' : callState}`}
           {callerId && ` - 着信: ${callerId}`}
         </CardDescription>
       </CardHeader>
@@ -215,11 +218,11 @@ export const Softphone: React.FC = () => {
         <div className="flex gap-2">
           <Button
             onClick={handleRegister}
-            disabled={isRegistered}
+            disabled={isRegistered || isConnecting}
             variant={isRegistered ? 'secondary' : 'default'}
             className="flex-1"
           >
-            登録
+            {isConnecting ? '接続中...' : '登録'}
           </Button>
           <Button
             onClick={handleUnregister}

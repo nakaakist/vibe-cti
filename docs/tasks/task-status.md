@@ -18,6 +18,6 @@
 | TASK-P1-006 | coding done |
 | TASK-P1-007 | coding done |
 | TASK-P1-008 | coding done |
-| TASK-P1-009 | not started |
-| TASK-P1-010 | not started |
+| TASK-P1-009 | coding done |
+| TASK-P1-010 | coding |
 | TASK-P1-011 | not started |

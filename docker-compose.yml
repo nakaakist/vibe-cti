@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   # FreeSWITCH - SIPサーバー/PBX
   freeswitch:
@@ -20,7 +18,7 @@ services:
 
   # Janus WebRTC Gateway
   janus:
-    build: ./docker/janus
+    image: canyan/janus-gateway:latest
     container_name: vibe-janus
     ports:
       - "8088:8088" # HTTP
@@ -28,13 +26,10 @@ services:
       - "8188:8188" # WebSocket
       - "8989:8989" # WebSocket Secure
       - "7088:7088" # Admin API
-      - "10000-10100:10000-10100/udp" # RTP/RTCP
-    volumes:
-      - ./docker/janus/conf:/etc/janus
+      - "7188:7188" # Admin WebSocket
+      - "20000-20100:20000-20100/udp" # RTP/RTCP
     networks:
       - vibe-network
-    depends_on:
-      - freeswitch
 
   # TURN/STUN サーバー
   coturn:

@@ -6,11 +6,15 @@ RUN apt-get update && apt-get install -y \
     gnupg2 \
     lsb-release \
     software-properties-common \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# FreeSWITCHリポジトリの追加
-RUN wget -O - https://files.freeswitch.org/repo/deb/debian-release/fsstretch-archive-keyring.asc | apt-key add - \
-    && echo "deb http://files.freeswitch.org/repo/deb/debian-release/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/freeswitch.list \
+# FreeSWITCHリポジトリの追加（SignalWireの公開リポジトリを使用）
+RUN wget --http-user=signalwire --http-password=pat_9CPCbFmqXEg5SAXsHGnkEH8B \
+    -O /usr/share/keyrings/signalwire-freeswitch-repo.gpg \
+    https://freeswitch.signalwire.com/repo/deb/debian-release/signalwire-freeswitch-repo.gpg \
+    && echo "machine freeswitch.signalwire.com login signalwire password pat_9CPCbFmqXEg5SAXsHGnkEH8B" > /etc/apt/auth.conf \
+    && echo "deb [signed-by=/usr/share/keyrings/signalwire-freeswitch-repo.gpg] https://freeswitch.signalwire.com/repo/deb/debian-release/ bullseye main" > /etc/apt/sources.list.d/freeswitch.list \
     && apt-get update
 
 # FreeSWITCHのインストール
