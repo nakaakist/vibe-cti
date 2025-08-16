@@ -96,9 +96,6 @@ services:
       - freeswitch
     networks:
       - vibe-network
-    volumes:
-      - ./backend:/app
-    working_dir: /app
 
   # フロントエンド (React)
   frontend:
@@ -114,10 +111,6 @@ services:
       - api
     networks:
       - vibe-network
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    working_dir: /app
 
   # PostgreSQL データベース
   postgres:

@@ -1,0 +1,130 @@
+# macOS システムファイル
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# IDE・エディタ
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+*.sublime-project
+
+# Go関連
+# バイナリファイル
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/backend/cmd/server/server
+/backend/bin/
+
+# Go依存関係
+/vendor/
+/Godeps/
+
+# Go カバレッジ
+*.coverprofile
+coverage.txt
+coverage.html
+
+# Node.js / フロントエンド関連
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+.npm
+.yarn-integrity
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# ビルド出力
+dist/
+build/
+out/
+.next/
+.nuxt/
+.vuepress/dist
+.serverless/
+.fusebox/
+.dynamodb/
+.tern-port
+.cache/
+.parcel-cache/
+
+# 環境変数
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# Docker関連
+docker-compose.override.yml
+.docker/
+
+# ログファイル
+*.log
+logs/
+*.log.*
+
+# テンポラリファイル
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+
+# データベース
+*.sqlite
+*.sqlite3
+*.db
+
+# SSL証明書（ローカル開発用）
+*.pem
+*.key
+*.crt
+*.csr
+
+# デバッグファイル
+debug/
+*.debug
+
+# プロファイリング
+*.prof
+*.pprof
+
+# テスト結果
+test-results/
+junit.xml
+test-report.xml
