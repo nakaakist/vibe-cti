@@ -13,6 +13,8 @@ import {
   wsConnectionAtom,
   peerConnectionAtom,
 } from '@/stores/phoneStore'
+import { wsService } from '@/services/websocket'
+import { webrtcService } from '@/services/webrtc'
 
 export const Softphone: React.FC = () => {
   const [isRegistered, setIsRegistered] = useAtom(isRegisteredAtom)
@@ -27,23 +29,22 @@ export const Softphone: React.FC = () => {
   const localAudioRef = useRef<HTMLAudioElement>(null)
   const remoteAudioRef = useRef<HTMLAudioElement>(null)
 
-  // WebSocket接続
-  const connectWebSocket = () => {
-    const ws = new WebSocket('ws://localhost:8080/ws')
-    
-    ws.onopen = () => {
-      console.log('WebSocket接続確立')
-      setWsConnection(ws)
-    }
-
-    ws.onmessage = async (event) => {
-      const data = JSON.parse(event.data)
+  // WebSocketメッセージハンドラ設定
+  useEffect(() => {
+    const unsubscribe = wsService.onMessage(async (data) => {
       console.log('WebSocketメッセージ受信:', data)
 
       switch (data.type) {
         case 'call_incoming':
           setCallerId(data.caller_id)
-          // 着信処理
+          // 着信処理 - 自動でPeerConnectionを作成
+          const pc = webrtcService.createPeerConnection((candidate) => {
+            wsService.send({
+              type: 'ice_candidate',
+              candidate: candidate
+            })
+          })
+          setPeerConnection(pc)
           break
         case 'call_connected':
           setIsInCall(true)
@@ -57,31 +58,25 @@ export const Softphone: React.FC = () => {
           break
         case 'answer':
           // WebRTC answer処理
-          await handleAnswer(data.sdp)
+          await webrtcService.handleAnswer(data.sdp)
           break
         case 'ice_candidate':
           // ICE候補処理
-          await handleIceCandidate(data.candidate)
+          await webrtcService.addIceCandidate(data.candidate)
           break
       }
-    }
+    })
 
-    ws.onerror = (error) => {
-      console.error('WebSocketエラー:', error)
+    return () => {
+      unsubscribe()
     }
-
-    ws.onclose = () => {
-      console.log('WebSocket接続終了')
-      setWsConnection(null)
-      setIsRegistered(false)
-    }
-  }
+  }, [])
 
   // SIP登録
   const handleRegister = async () => {
     try {
       // マイクアクセス取得
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await webrtcService.initializeMedia()
       setLocalStream(stream)
       
       if (localAudioRef.current) {
@@ -89,26 +84,33 @@ export const Softphone: React.FC = () => {
       }
 
       // WebSocket接続
-      connectWebSocket()
+      await wsService.connect()
+      setWsConnection(wsService)
       
-      // TODO: 実際のSIP登録処理
+      // SIP登録メッセージ送信
+      wsService.send({
+        type: 'register',
+        extension: '1001' // TODO: 設定可能にする
+      })
+      
       setIsRegistered(true)
     } catch (error) {
       console.error('登録エラー:', error)
+      alert('登録に失敗しました: ' + error)
     }
   }
 
   // 登録解除
   const handleUnregister = () => {
-    if (wsConnection) {
-      wsConnection.close()
-    }
+    wsService.send({
+      type: 'unregister'
+    })
     
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop())
-      setLocalStream(null)
-    }
+    wsService.disconnect()
+    webrtcService.hangup()
     
+    setWsConnection(null)
+    setLocalStream(null)
     setIsRegistered(false)
   }
 
@@ -119,101 +121,68 @@ export const Softphone: React.FC = () => {
       return
     }
 
-    // WebRTC接続セットアップ
-    const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' }
-      ]
-    })
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate && wsConnection) {
-        wsConnection.send(JSON.stringify({
+    try {
+      // WebRTC接続セットアップ
+      const pc = webrtcService.createPeerConnection((candidate) => {
+        wsService.send({
           type: 'ice_candidate',
-          candidate: event.candidate
-        }))
-      }
-    }
-
-    pc.ontrack = (event) => {
-      setRemoteStream(event.streams[0])
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = event.streams[0]
-      }
-    }
-
-    if (localStream) {
-      localStream.getTracks().forEach(track => {
-        pc.addTrack(track, localStream)
+          candidate: candidate
+        })
       })
-    }
 
-    setPeerConnection(pc)
+      setPeerConnection(pc)
 
-    // SDP作成と送信
-    const offer = await pc.createOffer()
-    await pc.setLocalDescription(offer)
+      // リモートストリーム設定
+      pc.ontrack = (event) => {
+        setRemoteStream(event.streams[0])
+        if (remoteAudioRef.current) {
+          remoteAudioRef.current.srcObject = event.streams[0]
+        }
+      }
 
-    if (wsConnection) {
-      wsConnection.send(JSON.stringify({
+      // SDP作成と送信
+      const offer = await webrtcService.createOffer()
+
+      wsService.send({
         type: 'call',
         number: phoneNumber,
         sdp: offer
-      }))
-    }
+      })
 
-    setIsInCall(true)
+      setIsInCall(true)
+    } catch (error) {
+      console.error('発信エラー:', error)
+      alert('発信に失敗しました: ' + error)
+    }
   }
 
   // 切断
   const handleHangup = () => {
-    if (peerConnection) {
-      peerConnection.close()
-      setPeerConnection(null)
-    }
+    webrtcService.hangup()
+    setPeerConnection(null)
+    setRemoteStream(null)
 
-    if (remoteStream) {
-      remoteStream.getTracks().forEach(track => track.stop())
-      setRemoteStream(null)
-    }
-
-    if (wsConnection) {
-      wsConnection.send(JSON.stringify({
-        type: 'hangup'
-      }))
-    }
+    wsService.send({
+      type: 'hangup'
+    })
 
     setIsInCall(false)
     setPhoneNumber('')
     setCallerId('')
   }
 
-  // WebRTC offer処理
+  // WebRTC offer処理（着信時）
   const handleOffer = async (offer: RTCSessionDescriptionInit) => {
-    if (!peerConnection) return
-
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer))
-    const answer = await peerConnection.createAnswer()
-    await peerConnection.setLocalDescription(answer)
-
-    if (wsConnection) {
-      wsConnection.send(JSON.stringify({
+    try {
+      const answer = await webrtcService.createAnswer(offer)
+      
+      wsService.send({
         type: 'answer',
         sdp: answer
-      }))
+      })
+    } catch (error) {
+      console.error('Offer処理エラー:', error)
     }
-  }
-
-  // WebRTC answer処理
-  const handleAnswer = async (answer: RTCSessionDescriptionInit) => {
-    if (!peerConnection) return
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer))
-  }
-
-  // ICE候補処理
-  const handleIceCandidate = async (candidate: RTCIceCandidateInit) => {
-    if (!peerConnection) return
-    await peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
   }
 
   // クリーンアップ
