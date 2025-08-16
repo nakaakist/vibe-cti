@@ -74,6 +74,47 @@ vibe-cti/
 - **FreeSWITCH** - PBX/SIPサーバー
 - **Docker Compose** - コンテナオーケストレーション
 
+## 開発環境の起動方法
+
+### 1. バックエンド（Docker Compose）
+バックエンドとデータベースはDocker Composeで起動する：
+
+```bash
+# 起動
+docker-compose up -d
+
+# 停止
+docker-compose down
+
+# ログ確認
+docker-compose logs -f api
+```
+
+### 2. フロントエンド（開発サーバー）
+フロントエンドは`npm run dev`で起動する：
+
+```bash
+cd frontend
+npm install  # 初回のみ
+npm run dev  # http://localhost:5173 で起動
+```
+
+### ポート使用状況の確認
+開発サーバーを起動する前に、必ず以下を確認すること：
+
+```bash
+# フロントエンド（ポート5173）の確認
+lsof -i :5173 | grep LISTEN
+
+# バックエンド（ポート8080）の確認  
+lsof -i :8080 | grep LISTEN
+
+# Docker起動状況の確認
+docker ps | grep vibe-
+```
+
+すでにプロセスが起動している場合は、新たに起動せずに既存のプロセスを使用すること。
+
 ## 開発コマンド
 
 ### Frontend
@@ -122,17 +163,6 @@ make check           # フォーマット + go vet + golangci-lint + テスト
 
 これらのコマンドでエラーが出た場合は、必ず修正してからタスクを完了とすること。
 
-### Docker環境
-```bash
-# 最小構成での起動（開発用）
-docker-compose -f docker-compose-minimal.yml up -d
-
-# フル構成での起動
-docker-compose up -d
-
-# 停止
-docker-compose down
-```
 
 ## タスクフェーズ
 1. **Phase 1 (MVP)** - 基本的な発着信機能

@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # FreeSWITCH - SIPサーバー/PBX
@@ -6,12 +6,12 @@ services:
     build: ./docker/freeswitch
     container_name: vibe-freeswitch
     ports:
-      - "5060:5060/udp"  # SIP
-      - "5060:5060/tcp"  # SIP
-      - "5080:5080/udp"  # SIP
-      - "5080:5080/tcp"  # SIP
-      - "8021:8021"      # Event Socket
-      - "16384-16484:16384-16484/udp"  # RTP
+      - "5060:5060/udp" # SIP
+      - "5060:5060/tcp" # SIP
+      - "5080:5080/udp" # SIP
+      - "5080:5080/tcp" # SIP
+      - "8021:8021" # Event Socket
+      - "16384-16484:16384-16484/udp" # RTP
     volumes:
       - ./docker/freeswitch/conf:/etc/freeswitch
       - freeswitch-logs:/var/log/freeswitch
@@ -23,12 +23,12 @@ services:
     build: ./docker/janus
     container_name: vibe-janus
     ports:
-      - "8088:8088"      # HTTP
-      - "8089:8089"      # HTTPS
-      - "8188:8188"      # WebSocket
-      - "8989:8989"      # WebSocket Secure
-      - "7088:7088"      # Admin API
-      - "10000-10100:10000-10100/udp"  # RTP/RTCP
+      - "8088:8088" # HTTP
+      - "8089:8089" # HTTPS
+      - "8188:8188" # WebSocket
+      - "8989:8989" # WebSocket Secure
+      - "7088:7088" # Admin API
+      - "10000-10100:10000-10100/udp" # RTP/RTCP
     volumes:
       - ./docker/janus/conf:/etc/janus
     networks:
@@ -41,11 +41,11 @@ services:
     image: coturn/coturn:latest
     container_name: vibe-coturn
     ports:
-      - "3478:3478/udp"  # STUN/TURN
-      - "3478:3478/tcp"  # STUN/TURN
-      - "5349:5349/udp"  # STUN/TURN over TLS
-      - "5349:5349/tcp"  # STUN/TURN over TLS
-      - "49152-49200:49152-49200/udp"  # TURN relay
+      - "3478:3478/udp" # STUN/TURN
+      - "3478:3478/tcp" # STUN/TURN
+      - "5349:5349/udp" # STUN/TURN over TLS
+      - "5349:5349/tcp" # STUN/TURN over TLS
+      - "49152-49200:49152-49200/udp" # TURN relay
     environment:
       - TURNSERVER_ENABLED=1
       - TURNSERVER_VERBOSE=1
@@ -94,21 +94,6 @@ services:
       - redis
       - janus
       - freeswitch
-    networks:
-      - vibe-network
-
-  # フロントエンド (React)
-  frontend:
-    build: ./frontend
-    container_name: vibe-frontend
-    ports:
-      - "3000:3000"
-    environment:
-      - REACT_APP_API_URL=http://localhost:8080
-      - REACT_APP_WS_URL=ws://localhost:8080/ws
-      - REACT_APP_JANUS_URL=ws://localhost:8188
-    depends_on:
-      - api
     networks:
       - vibe-network
 
