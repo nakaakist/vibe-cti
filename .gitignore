@@ -128,3 +128,4 @@ debug/
 test-results/
 junit.xml
 test-report.xml
+.playwright-mcp
