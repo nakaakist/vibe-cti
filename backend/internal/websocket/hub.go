@@ -130,15 +130,11 @@ func (c *Client) ReadPump() {
 func (c *Client) WritePump() {
 	defer c.Conn.Close()
 
-	for {
-		select {
-		case message, ok := <-c.Send:
-			if !ok {
-				c.Conn.WriteMessage(CloseMessage, []byte{})
-				return
-			}
-
-			c.Conn.WriteMessage(TextMessage, message)
+	for message := range c.Send {
+		if err := c.Conn.WriteMessage(TextMessage, message); err != nil {
+			return
 		}
 	}
+	// チャネルが閉じられた場合、クローズメッセージを送信
+	_ = c.Conn.WriteMessage(CloseMessage, []byte{})
 }

@@ -13,13 +13,13 @@ import (
 
 // モックJanusクライアント
 type mockJanusClient struct {
-	createSessionFunc   func() (*janus.Response, error)
-	attachPluginFunc    func(sessionID uint64, plugin string) (*janus.Response, error)
-	registerSIPFunc     func(sessionID, handleID uint64, username, secret, proxy string) (*janus.Response, error)
-	makeCallFunc        func(sessionID, handleID uint64, uri string, jsep *janus.JSEP) (*janus.Response, error)
-	answerCallFunc      func(sessionID, handleID uint64, jsep *janus.JSEP) (*janus.Response, error)
-	hangupCallFunc      func(sessionID, handleID uint64) (*janus.Response, error)
-	sendCandidateFunc   func(sessionID, handleID uint64, candidate *janus.Candidate) (*janus.Response, error)
+	createSessionFunc func() (*janus.Response, error)
+	attachPluginFunc  func(sessionID uint64, plugin string) (*janus.Response, error)
+	registerSIPFunc   func(sessionID, handleID uint64, username, secret, proxy string) (*janus.Response, error)
+	makeCallFunc      func(sessionID, handleID uint64, uri string, jsep *janus.JSEP) (*janus.Response, error)
+	answerCallFunc    func(sessionID, handleID uint64, jsep *janus.JSEP) (*janus.Response, error)
+	hangupCallFunc    func(sessionID, handleID uint64) (*janus.Response, error)
+	sendCandidateFunc func(sessionID, handleID uint64, candidate *janus.Candidate) (*janus.Response, error)
 }
 
 func (m *mockJanusClient) CreateSession() (*janus.Response, error) {

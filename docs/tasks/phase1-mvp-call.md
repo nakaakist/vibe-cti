@@ -402,13 +402,43 @@ describe('WebRTCManager', () => {
 **テスト戦略**:
 - **E2E Test依頼**: 外部からのアクセス確認
 
+**重要**: localtunnelが必要になるケース
+
+| 機能 | Localtunnel必要性 | 理由 |
+|-----|------------------|------|
+| **ローカル発信テスト** | ❌ 不要 | localhost環境ではHTTPでもgetUserMedia()が使用可能 |
+| **外部デバイスからのアクセス** | ✅ 必要（Frontend） | HTTPSが必要（WebRTC制約） |
+| **Twilio/Vonage着信** | ✅ **必要（API）** | Webhookコールバック受信のため |
+| **Twilio/Vonage発信** | ❌ 不要 | アウトバウンド接続のみ |
+
 **実装内容**:
 ```bash
 # start_tunnel.sh
 #!/bin/bash
-npx localtunnel --port 3000 --subdomain vibe-cti-frontend &
-npx localtunnel --port 8080 --subdomain vibe-cti-api &
-npx localtunnel --port 8088 --subdomain vibe-cti-janus &
+
+# ケース1: ローカル開発のみ（localtunnel不要）
+echo "ローカル開発環境: http://localhost:5173"
+
+# ケース2: 外部デバイスからアクセスする場合
+# npx localtunnel --port 5173 --subdomain vibe-cti-frontend &
+
+# ケース3: Twilio/Vonage着信をテストする場合（必須）
+# npx localtunnel --port 8080 --subdomain vibe-cti-api &
+# echo "Twilioコンソールで以下を設定:"
+# echo "Webhook URL: https://vibe-cti-api.loca.lt/api/webhooks/twilio/voice"
+```
+
+**Twilio/Vonage連携時の設定例**:
+```javascript
+// backend/config/twilio.js
+const twilioConfig = {
+  // localtunnelで取得したURL
+  webhookUrl: process.env.WEBHOOK_URL || 'https://vibe-cti-api.loca.lt',
+  
+  // Twilioコンソールで設定するURL
+  voiceWebhook: '/api/webhooks/twilio/voice',
+  statusCallback: '/api/webhooks/twilio/status'
+};
 ```
 
 ---

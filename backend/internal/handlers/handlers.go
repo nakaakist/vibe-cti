@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/gorilla/websocket"
@@ -92,7 +93,11 @@ func (h *Handler) AttachPlugin(c echo.Context) error {
 	}
 
 	var sessionIDUint uint64
-	fmt.Sscanf(sessionID, "%d", &sessionIDUint)
+	if _, err := fmt.Sscanf(sessionID, "%d", &sessionIDUint); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid session ID",
+		})
+	}
 
 	resp, err := h.janusClient.AttachPlugin(sessionIDUint, req.Plugin)
 	if err != nil {
@@ -124,8 +129,16 @@ func (h *Handler) RegisterSIP(c echo.Context) error {
 	}
 
 	var sessionIDUint, handleIDUint uint64
-	fmt.Sscanf(sessionID, "%d", &sessionIDUint)
-	fmt.Sscanf(handleID, "%d", &handleIDUint)
+	if _, err := fmt.Sscanf(sessionID, "%d", &sessionIDUint); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid session ID",
+		})
+	}
+	if _, err := fmt.Sscanf(handleID, "%d", &handleIDUint); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid handle ID",
+		})
+	}
 
 	resp, err := h.janusClient.RegisterSIP(sessionIDUint, handleIDUint, req.Username, req.Secret, req.Proxy)
 	if err != nil {
@@ -154,8 +167,16 @@ func (h *Handler) MakeCall(c echo.Context) error {
 	}
 
 	var sessionIDUint, handleIDUint uint64
-	fmt.Sscanf(sessionID, "%d", &sessionIDUint)
-	fmt.Sscanf(handleID, "%d", &handleIDUint)
+	if _, err := fmt.Sscanf(sessionID, "%d", &sessionIDUint); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid session ID",
+		})
+	}
+	if _, err := fmt.Sscanf(handleID, "%d", &handleIDUint); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid handle ID",
+		})
+	}
 
 	resp, err := h.janusClient.MakeCall(sessionIDUint, handleIDUint, req.URI, req.Jsep)
 	if err != nil {
@@ -165,10 +186,12 @@ func (h *Handler) MakeCall(c echo.Context) error {
 	}
 
 	// WebSocket通知
-	h.wsHub.Broadcast(&ws.Message{
+	if err := h.wsHub.Broadcast(&ws.Message{
 		Type: ws.TypeCallConnected,
-		Data: json.RawMessage(fmt.Sprintf(`{"session_id": "%s", "handle_id": "%s"}`, sessionID, handleID)),
-	})
+		Data: json.RawMessage(fmt.Sprintf(`{"session_id": %q, "handle_id": %q}`, sessionID, handleID)),
+	}); err != nil {
+		log.Printf("Failed to broadcast call connected: %v", err)
+	}
 
 	return c.JSON(http.StatusOK, resp)
 }
@@ -189,8 +212,16 @@ func (h *Handler) AnswerCall(c echo.Context) error {
 	}
 
 	var sessionIDUint, handleIDUint uint64
-	fmt.Sscanf(sessionID, "%d", &sessionIDUint)
-	fmt.Sscanf(handleID, "%d", &handleIDUint)
+	if _, err := fmt.Sscanf(sessionID, "%d", &sessionIDUint); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid session ID",
+		})
+	}
+	if _, err := fmt.Sscanf(handleID, "%d", &handleIDUint); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid handle ID",
+		})
+	}
 
 	resp, err := h.janusClient.AnswerCall(sessionIDUint, handleIDUint, req.Jsep)
 	if err != nil {
@@ -208,8 +239,16 @@ func (h *Handler) HangupCall(c echo.Context) error {
 	handleID := c.Param("handleId")
 
 	var sessionIDUint, handleIDUint uint64
-	fmt.Sscanf(sessionID, "%d", &sessionIDUint)
-	fmt.Sscanf(handleID, "%d", &handleIDUint)
+	if _, err := fmt.Sscanf(sessionID, "%d", &sessionIDUint); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid session ID",
+		})
+	}
+	if _, err := fmt.Sscanf(handleID, "%d", &handleIDUint); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid handle ID",
+		})
+	}
 
 	resp, err := h.janusClient.HangupCall(sessionIDUint, handleIDUint)
 	if err != nil {
@@ -219,10 +258,12 @@ func (h *Handler) HangupCall(c echo.Context) error {
 	}
 
 	// WebSocket通知
-	h.wsHub.Broadcast(&ws.Message{
+	if err := h.wsHub.Broadcast(&ws.Message{
 		Type: ws.TypeCallEnded,
-		Data: json.RawMessage(fmt.Sprintf(`{"session_id": "%s", "handle_id": "%s"}`, sessionID, handleID)),
-	})
+		Data: json.RawMessage(fmt.Sprintf(`{"session_id": %q, "handle_id": %q}`, sessionID, handleID)),
+	}); err != nil {
+		log.Printf("Failed to broadcast call ended: %v", err)
+	}
 
 	return c.JSON(http.StatusOK, resp)
 }
@@ -243,11 +284,13 @@ func (h *Handler) SendOffer(c echo.Context) error {
 	}
 
 	// WebSocket通知
-	h.wsHub.Broadcast(&ws.Message{
+	if err := h.wsHub.Broadcast(&ws.Message{
 		Type: ws.TypeOffer,
-		Data: json.RawMessage(fmt.Sprintf(`{"session_id": "%s", "handle_id": "%s", "jsep": %s}`, 
+		Data: json.RawMessage(fmt.Sprintf(`{"session_id": %q, "handle_id": %q, "jsep": %s}`,
 			sessionID, handleID, mustMarshal(req.Jsep))),
-	})
+	}); err != nil {
+		log.Printf("Failed to broadcast offer: %v", err)
+	}
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"status": "offer sent",
@@ -270,11 +313,13 @@ func (h *Handler) SendAnswer(c echo.Context) error {
 	}
 
 	// WebSocket通知
-	h.wsHub.Broadcast(&ws.Message{
+	if err := h.wsHub.Broadcast(&ws.Message{
 		Type: ws.TypeAnswer,
-		Data: json.RawMessage(fmt.Sprintf(`{"session_id": "%s", "handle_id": "%s", "jsep": %s}`, 
+		Data: json.RawMessage(fmt.Sprintf(`{"session_id": %q, "handle_id": %q, "jsep": %s}`,
 			sessionID, handleID, mustMarshal(req.Jsep))),
-	})
+	}); err != nil {
+		log.Printf("Failed to broadcast answer: %v", err)
+	}
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"status": "answer sent",
@@ -297,8 +342,16 @@ func (h *Handler) SendCandidate(c echo.Context) error {
 	}
 
 	var sessionIDUint, handleIDUint uint64
-	fmt.Sscanf(sessionID, "%d", &sessionIDUint)
-	fmt.Sscanf(handleID, "%d", &handleIDUint)
+	if _, err := fmt.Sscanf(sessionID, "%d", &sessionIDUint); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid session ID",
+		})
+	}
+	if _, err := fmt.Sscanf(handleID, "%d", &handleIDUint); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{
+			"error": "Invalid handle ID",
+		})
+	}
 
 	resp, err := h.janusClient.SendCandidate(sessionIDUint, handleIDUint, req.Candidate)
 	if err != nil {
@@ -308,16 +361,22 @@ func (h *Handler) SendCandidate(c echo.Context) error {
 	}
 
 	// WebSocket通知
-	h.wsHub.Broadcast(&ws.Message{
+	if err := h.wsHub.Broadcast(&ws.Message{
 		Type: ws.TypeICECandidate,
-		Data: json.RawMessage(fmt.Sprintf(`{"session_id": "%s", "handle_id": "%s", "candidate": %s}`, 
+		Data: json.RawMessage(fmt.Sprintf(`{"session_id": %q, "handle_id": %q, "candidate": %s}`,
 			sessionID, handleID, mustMarshal(req.Candidate))),
-	})
+	}); err != nil {
+		log.Printf("Failed to broadcast ICE candidate: %v", err)
+	}
 
 	return c.JSON(http.StatusOK, resp)
 }
 
 func mustMarshal(v interface{}) string {
-	data, _ := json.Marshal(v)
+	data, err := json.Marshal(v)
+	if err != nil {
+		log.Printf("Failed to marshal JSON: %v", err)
+		return "{}"
+	}
 	return string(data)
 }

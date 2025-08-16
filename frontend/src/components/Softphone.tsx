@@ -1,33 +1,63 @@
-import React, { useEffect, useRef } from 'react'
 import { useAtom } from 'jotai'
+import type React from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { webrtcService } from '@/services/webrtc'
+import { wsService } from '@/services/websocket'
 import {
-  isRegisteredAtom,
-  isInCallAtom,
-  phoneNumberAtom,
   callerIdAtom,
+  isInCallAtom,
+  isRegisteredAtom,
   localStreamAtom,
+  peerConnectionAtom,
+  phoneNumberAtom,
   remoteStreamAtom,
   wsConnectionAtom,
-  peerConnectionAtom,
 } from '@/stores/phoneStore'
-import { wsService } from '@/services/websocket'
-import { webrtcService } from '@/services/webrtc'
 
 export const Softphone: React.FC = () => {
   const [isRegistered, setIsRegistered] = useAtom(isRegisteredAtom)
   const [isInCall, setIsInCall] = useAtom(isInCallAtom)
   const [phoneNumber, setPhoneNumber] = useAtom(phoneNumberAtom)
   const [callerId, setCallerId] = useAtom(callerIdAtom)
-  const [localStream, setLocalStream] = useAtom(localStreamAtom)
-  const [remoteStream, setRemoteStream] = useAtom(remoteStreamAtom)
-  const [wsConnection, setWsConnection] = useAtom(wsConnectionAtom)
-  const [peerConnection, setPeerConnection] = useAtom(peerConnectionAtom)
+  const [_localStream, setLocalStream] = useAtom(localStreamAtom)
+  const [_remoteStream, setRemoteStream] = useAtom(remoteStreamAtom)
+  const [_wsConnection, setWsConnection] = useAtom(wsConnectionAtom)
+  const [_peerConnection, setPeerConnection] = useAtom(peerConnectionAtom)
 
   const localAudioRef = useRef<HTMLAudioElement>(null)
   const remoteAudioRef = useRef<HTMLAudioElement>(null)
+
+  // 切断（useCallbackで定義を先に移動）
+  const handleHangup = useCallback(() => {
+    webrtcService.hangup()
+    setPeerConnection(null)
+    setRemoteStream(null)
+
+    wsService.send({
+      type: 'hangup',
+    })
+
+    setIsInCall(false)
+    setPhoneNumber('')
+    setCallerId('')
+  }, [setPeerConnection, setRemoteStream, setIsInCall, setPhoneNumber, setCallerId])
+
+  // WebRTC offer処理（着信時）（useCallbackで定義を先に移動）
+  const handleOffer = useCallback(async (offer: RTCSessionDescriptionInit) => {
+    try {
+      const answer = await webrtcService.createAnswer(offer)
+
+      wsService.send({
+        type: 'answer',
+        sdp: answer,
+      })
+    } catch (error) {
+      console.error('Offer処理エラー:', error)
+    }
+  }, [])
 
   // WebSocketメッセージハンドラ設定
   useEffect(() => {
@@ -35,17 +65,18 @@ export const Softphone: React.FC = () => {
       console.log('WebSocketメッセージ受信:', data)
 
       switch (data.type) {
-        case 'call_incoming':
-          setCallerId(data.caller_id)
+        case 'call_incoming': {
+          setCallerId(data.caller_id || '')
           // 着信処理 - 自動でPeerConnectionを作成
           const pc = webrtcService.createPeerConnection((candidate) => {
             wsService.send({
               type: 'ice_candidate',
-              candidate: candidate
+              candidate: candidate,
             })
           })
           setPeerConnection(pc)
           break
+        }
         case 'call_connected':
           setIsInCall(true)
           break
@@ -54,15 +85,21 @@ export const Softphone: React.FC = () => {
           break
         case 'offer':
           // WebRTC offer処理
-          await handleOffer(data.sdp)
+          if (data.sdp) {
+            await handleOffer(data.sdp)
+          }
           break
         case 'answer':
           // WebRTC answer処理
-          await webrtcService.handleAnswer(data.sdp)
+          if (data.sdp) {
+            await webrtcService.handleAnswer(data.sdp)
+          }
           break
         case 'ice_candidate':
           // ICE候補処理
-          await webrtcService.addIceCandidate(data.candidate)
+          if (data.candidate) {
+            await webrtcService.addIceCandidate(data.candidate)
+          }
           break
       }
     })
@@ -70,7 +107,7 @@ export const Softphone: React.FC = () => {
     return () => {
       unsubscribe()
     }
-  }, [])
+  }, [handleHangup, handleOffer, setCallerId, setIsInCall, setPeerConnection])
 
   // SIP登録
   const handleRegister = async () => {
@@ -78,7 +115,7 @@ export const Softphone: React.FC = () => {
       // マイクアクセス取得
       const stream = await webrtcService.initializeMedia()
       setLocalStream(stream)
-      
+
       if (localAudioRef.current) {
         localAudioRef.current.srcObject = stream
       }
@@ -86,33 +123,33 @@ export const Softphone: React.FC = () => {
       // WebSocket接続
       await wsService.connect()
       setWsConnection(wsService)
-      
+
       // SIP登録メッセージ送信
       wsService.send({
         type: 'register',
-        extension: '1001' // TODO: 設定可能にする
+        extension: '1001', // TODO: 設定可能にする
       })
-      
+
       setIsRegistered(true)
     } catch (error) {
       console.error('登録エラー:', error)
-      alert('登録に失敗しました: ' + error)
+      alert(`登録に失敗しました: ${error}`)
     }
   }
 
   // 登録解除
-  const handleUnregister = () => {
+  const handleUnregister = useCallback(() => {
     wsService.send({
-      type: 'unregister'
+      type: 'unregister',
     })
-    
+
     wsService.disconnect()
     webrtcService.hangup()
-    
+
     setWsConnection(null)
     setLocalStream(null)
     setIsRegistered(false)
-  }
+  }, [setWsConnection, setLocalStream, setIsRegistered])
 
   // 発信
   const handleCall = async () => {
@@ -126,7 +163,7 @@ export const Softphone: React.FC = () => {
       const pc = webrtcService.createPeerConnection((candidate) => {
         wsService.send({
           type: 'ice_candidate',
-          candidate: candidate
+          candidate: candidate,
         })
       })
 
@@ -146,51 +183,23 @@ export const Softphone: React.FC = () => {
       wsService.send({
         type: 'call',
         number: phoneNumber,
-        sdp: offer
+        sdp: offer,
       })
 
       setIsInCall(true)
     } catch (error) {
       console.error('発信エラー:', error)
-      alert('発信に失敗しました: ' + error)
+      alert(`発信に失敗しました: ${error}`)
     }
   }
 
-  // 切断
-  const handleHangup = () => {
-    webrtcService.hangup()
-    setPeerConnection(null)
-    setRemoteStream(null)
-
-    wsService.send({
-      type: 'hangup'
-    })
-
-    setIsInCall(false)
-    setPhoneNumber('')
-    setCallerId('')
-  }
-
-  // WebRTC offer処理（着信時）
-  const handleOffer = async (offer: RTCSessionDescriptionInit) => {
-    try {
-      const answer = await webrtcService.createAnswer(offer)
-      
-      wsService.send({
-        type: 'answer',
-        sdp: answer
-      })
-    } catch (error) {
-      console.error('Offer処理エラー:', error)
-    }
-  }
 
   // クリーンアップ
   useEffect(() => {
     return () => {
       handleUnregister()
     }
-  }, [])
+  }, [handleUnregister])
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -233,25 +242,19 @@ export const Softphone: React.FC = () => {
 
         {/* 発信/切断ボタン */}
         {isInCall ? (
-          <Button
-            onClick={handleHangup}
-            variant="destructive"
-            className="w-full"
-          >
+          <Button onClick={handleHangup} variant="destructive" className="w-full">
             切断
           </Button>
         ) : (
-          <Button
-            onClick={handleCall}
-            disabled={!isRegistered || !phoneNumber}
-            className="w-full"
-          >
+          <Button onClick={handleCall} disabled={!isRegistered || !phoneNumber} className="w-full">
             発信
           </Button>
         )}
 
         {/* オーディオ要素 */}
+        {/* biome-ignore lint/a11y/useMediaCaption: 電話アプリのため字幕は不要 */}
         <audio ref={localAudioRef} autoPlay muted />
+        {/* biome-ignore lint/a11y/useMediaCaption: 電話アプリのため字幕は不要 */}
         <audio ref={remoteAudioRef} autoPlay />
       </CardContent>
     </Card>

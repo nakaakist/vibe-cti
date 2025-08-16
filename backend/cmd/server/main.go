@@ -36,7 +36,7 @@ func main() {
 	// ルート設定
 	e.GET("/health", h.HealthCheck)
 	e.GET("/ws", h.WebSocketHandler)
-	
+
 	// Janus制御API
 	api := e.Group("/api/v1")
 	api.POST("/sessions", h.CreateSession)

@@ -233,7 +233,7 @@ Surface:    #FFFFFF                // カード・パネル
 
 ### 11.2 開発ツール
 
-- **コード品質**: ESLint + Prettier
+- **コード品質**: Biome（フォーマット・Lint統合ツール）
 - **テスト**: Vitest + React Testing Library
 - **E2Eテスト**: Playwright
 - **Storybook**: コンポーネントカタログ

@@ -217,3 +217,53 @@ MVP版では実装しないが、将来的に追加予定の機能：
 - プロファイル管理
 - 複数トランクの優先順位設定
 - 詳細な統計情報
+
+## 11. Twilio/Vonage連携時の考慮事項
+
+### 11.1 ローカル開発環境での接続要件
+
+**発信（Outbound）**:
+- localtunnel: **不要**
+- 理由: SIP登録とRTP通信はすべてアウトバウンド接続
+
+**着信（Inbound）**:
+- localtunnel: **必要（APIサーバーのみ）**
+- 理由: Webhookコールバックを受信するため
+- 設定例:
+  ```bash
+  # API用トンネル起動
+  lt --port 8080 --subdomain vibe-cti-api
+  
+  # TwilioコンソールでWebhook URLを設定
+  # Voice URL: https://vibe-cti-api.loca.lt/api/webhooks/twilio/voice
+  # Status Callback: https://vibe-cti-api.loca.lt/api/webhooks/twilio/status
+  ```
+
+### 11.2 Webhook設計
+
+```typescript
+// Twilio着信Webhook
+POST /api/webhooks/twilio/voice
+{
+  "From": "+81901234567",
+  "To": "+81312345678",
+  "CallSid": "CA1234567890abcdef",
+  "Direction": "inbound"
+}
+
+// レスポンス（TwiML）
+<Response>
+  <Dial>
+    <Sip>sip:1001@freeswitch.local</Sip>
+  </Dial>
+</Response>
+```
+
+### 11.3 ネットワーク要件
+
+| コンポーネント | ポート | プロトコル | 外部公開 | 備考 |
+|--------------|--------|----------|---------|------|
+| API Webhook | 8080 | HTTPS | 必要* | *localtunnel経由 |
+| FreeSWITCH SIP | 5060 | UDP/TCP | 不要 | アウトバウンドのみ |
+| RTP Media | 16384-32768 | UDP | 不要 | STUN/TURN利用 |
+| WebSocket | 8080 | WSS | 不要 | ローカルのみ |

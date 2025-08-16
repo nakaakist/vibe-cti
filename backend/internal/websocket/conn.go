@@ -13,12 +13,6 @@ const (
 	// Time allowed to read the next pong message from the peer.
 	pongWait = 60 * time.Second
 
-	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = (pongWait * 9) / 10
-
-	// Maximum message size allowed from peer.
-	maxMessageSize = 512
-
 	// WebSocket message types
 	TextMessage  = websocket.TextMessage
 	CloseMessage = websocket.CloseMessage
@@ -34,15 +28,18 @@ func NewWSConn(conn *websocket.Conn) *WSConn {
 }
 
 func (c *WSConn) ReadMessage() (messageType int, p []byte, err error) {
-	c.SetReadDeadline(time.Now().Add(pongWait))
+	if err := c.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+		return 0, nil, err
+	}
 	c.SetPongHandler(func(string) error {
-		c.SetReadDeadline(time.Now().Add(pongWait))
-		return nil
+		return c.SetReadDeadline(time.Now().Add(pongWait))
 	})
 	return c.Conn.ReadMessage()
 }
 
 func (c *WSConn) WriteMessage(messageType int, data []byte) error {
-	c.SetWriteDeadline(time.Now().Add(writeWait))
+	if err := c.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+		return err
+	}
 	return c.Conn.WriteMessage(messageType, data)
 }

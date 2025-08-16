@@ -1,4 +1,5 @@
 import { atom } from 'jotai'
+import type { WebSocketService } from '@/services/websocket'
 
 // 通話状態
 export const isRegisteredAtom = atom(false)
@@ -12,4 +13,4 @@ export const remoteStreamAtom = atom<MediaStream | null>(null)
 export const peerConnectionAtom = atom<RTCPeerConnection | null>(null)
 
 // WebSocket
-export const wsConnectionAtom = atom<WebSocket | null>(null)
+export const wsConnectionAtom = atom<WebSocketService | null>(null)
