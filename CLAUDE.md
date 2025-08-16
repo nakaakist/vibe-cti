@@ -15,6 +15,7 @@
 - ユニットテストやインテグレーションテストは、実装と並行して追加すること
 - 各テストが通ることを逐一確認しながら開発を進めること
 - テストファースト開発を推奨
+- Claude Code でコードを書いた後は、必ず/validate カスタムスラッシュコマンドを使って静的検証を行うこと。出てきた問題は必ず修正すること。
 
 ### 3. 手動テストが必要な場合の対応
 
@@ -158,26 +159,6 @@ make check           # 全ての静的チェックとテストを実行
 make mod             # go mod tidy実行
 make install-tools   # 開発ツールをインストール
 ```
-
-## 静的検証（Claude Code 向け重要事項）
-
-Claude Code でコードを書いた後は、必ず以下のコマンドを実行して静的検証を行うこと：
-
-### Frontend
-
-```bash
-cd frontend
-npm run check        # TypeScript型チェック + Biome Lintチェック
-```
-
-### Backend
-
-```bash
-cd backend
-make check           # フォーマット + go vet + golangci-lint + テスト
-```
-
-これらのコマンドでエラーが出た場合は、必ず修正してからタスクを完了とすること。
 
 ## タスクフェーズ
 
