@@ -1,0 +1,14 @@
+{
+  "general": {
+    "local_ip": "0.0.0.0",
+    "sdp_ip": "0.0.0.0",
+    "bind_port": 5062,
+    "rtp_port_range": "10200-10300",
+    "user_agent": "ViBE CTI Janus SIP Plugin",
+    "register_ttl": 3600,
+    "behind_nat": false,
+    "sip_timer_t1x64": 32000,
+    "sip_timer_t2": 4000,
+    "sip_timer_t4": 5000
+  }
+}

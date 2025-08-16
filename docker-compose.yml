@@ -1,0 +1,156 @@
+version: '3.8'
+
+services:
+  # FreeSWITCH - SIPサーバー/PBX
+  freeswitch:
+    build: ./docker/freeswitch
+    container_name: vibe-freeswitch
+    ports:
+      - "5060:5060/udp"  # SIP
+      - "5060:5060/tcp"  # SIP
+      - "5080:5080/udp"  # SIP
+      - "5080:5080/tcp"  # SIP
+      - "8021:8021"      # Event Socket
+      - "16384-16484:16384-16484/udp"  # RTP
+    volumes:
+      - ./docker/freeswitch/conf:/etc/freeswitch
+      - freeswitch-logs:/var/log/freeswitch
+    networks:
+      - vibe-network
+
+  # Janus WebRTC Gateway
+  janus:
+    build: ./docker/janus
+    container_name: vibe-janus
+    ports:
+      - "8088:8088"      # HTTP
+      - "8089:8089"      # HTTPS
+      - "8188:8188"      # WebSocket
+      - "8989:8989"      # WebSocket Secure
+      - "7088:7088"      # Admin API
+      - "10000-10100:10000-10100/udp"  # RTP/RTCP
+    volumes:
+      - ./docker/janus/conf:/etc/janus
+    networks:
+      - vibe-network
+    depends_on:
+      - freeswitch
+
+  # TURN/STUN サーバー
+  coturn:
+    image: coturn/coturn:latest
+    container_name: vibe-coturn
+    ports:
+      - "3478:3478/udp"  # STUN/TURN
+      - "3478:3478/tcp"  # STUN/TURN
+      - "5349:5349/udp"  # STUN/TURN over TLS
+      - "5349:5349/tcp"  # STUN/TURN over TLS
+      - "49152-49200:49152-49200/udp"  # TURN relay
+    environment:
+      - TURNSERVER_ENABLED=1
+      - TURNSERVER_VERBOSE=1
+      - TURNSERVER_PORT=3478
+      - TURNSERVER_ALT_PORT=3479
+      - TURNSERVER_MIN_PORT=49152
+      - TURNSERVER_MAX_PORT=49200
+    command:
+      - -n
+      - --log-file=stdout
+      - --external-ip=$$(detect-external-ip)
+      - --relay-ip=$$(detect-external-ip)
+      - --listening-port=3478
+      - --min-port=49152
+      - --max-port=49200
+      - --verbose
+      - --fingerprint
+      - --no-multicast-peers
+      - --no-tls
+      - --no-dtls
+      - --realm=vibe-cti.local
+      - --user=vibe:vibe123
+    networks:
+      - vibe-network
+
+  # バックエンドAPI (Go)
+  api:
+    build: ./backend
+    container_name: vibe-api
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=vibe_cti
+      - DB_USER=vibe
+      - DB_PASSWORD=vibe123
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - JANUS_URL=http://janus:8088/janus
+      - FREESWITCH_HOST=freeswitch
+      - FREESWITCH_ESL_PORT=8021
+      - FREESWITCH_ESL_PASSWORD=ClueCon
+    depends_on:
+      - postgres
+      - redis
+      - janus
+      - freeswitch
+    networks:
+      - vibe-network
+    volumes:
+      - ./backend:/app
+    working_dir: /app
+
+  # フロントエンド (React)
+  frontend:
+    build: ./frontend
+    container_name: vibe-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8080
+      - REACT_APP_WS_URL=ws://localhost:8080/ws
+      - REACT_APP_JANUS_URL=ws://localhost:8188
+    depends_on:
+      - api
+    networks:
+      - vibe-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    working_dir: /app
+
+  # PostgreSQL データベース
+  postgres:
+    image: postgres:15-alpine
+    container_name: vibe-postgres
+    environment:
+      - POSTGRES_DB=vibe_cti
+      - POSTGRES_USER=vibe
+      - POSTGRES_PASSWORD=vibe123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/migrations:/docker-entrypoint-initdb.d
+    networks:
+      - vibe-network
+
+  # Redis キャッシュ/セッション管理
+  redis:
+    image: redis:7-alpine
+    container_name: vibe-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - vibe-network
+
+volumes:
+  postgres-data:
+  redis-data:
+  freeswitch-logs:
+
+networks:
+  vibe-network:
+    driver: bridge

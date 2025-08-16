@@ -1,0 +1,33 @@
+<profile name="internal">
+  <settings>
+    <!-- ネットワーク設定 -->
+    <param name="sip-ip" value="0.0.0.0"/>
+    <param name="sip-port" value="5060"/>
+    <param name="rtp-ip" value="0.0.0.0"/>
+    
+    <!-- 認証設定 -->
+    <param name="auth-calls" value="true"/>
+    <param name="auth-all-packets" value="false"/>
+    
+    <!-- コーデック設定 -->
+    <param name="inbound-codec-prefs" value="OPUS,PCMU,PCMA"/>
+    <param name="outbound-codec-prefs" value="OPUS,PCMU,PCMA"/>
+    
+    <!-- RTP設定 -->
+    <param name="rtp-timeout-sec" value="300"/>
+    <param name="rtp-hold-timeout-sec" value="1800"/>
+    
+    <!-- NAT設定 -->
+    <param name="ext-rtp-ip" value="auto-nat"/>
+    <param name="ext-sip-ip" value="auto-nat"/>
+    
+    <!-- WebRTC対応 -->
+    <param name="enable-3pcc" value="true"/>
+    <param name="rtcp-audio-interval-msec" value="5000"/>
+    <param name="rtcp-video-interval-msec" value="5000"/>
+    
+    <!-- デバッグ -->
+    <param name="debug" value="0"/>
+    <param name="sip-trace" value="no"/>
+  </settings>
+</profile>
