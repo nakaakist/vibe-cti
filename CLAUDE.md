@@ -82,18 +82,45 @@ cd frontend
 npm install          # 依存関係のインストール
 npm run dev          # 開発サーバー起動 (http://localhost:5173)
 npm run build        # ビルド
-npm run lint         # ESLint実行
+npm run typecheck    # TypeScript型チェック
+npm run lint         # Biomeでフォーマット・Lint（自動修正）
+npm run lint:check   # Biomeでフォーマット・Lintチェック（修正なし）
+npm run check        # 型チェック + Lintチェック（CI用）
+npm run fix          # コードの自動修正
 npm run preview      # ビルド結果のプレビュー
 ```
 
 ### Backend
 ```bash
 cd backend
-go mod download      # 依存関係のダウンロード
-go run cmd/server/main.go  # サーバー起動
-go test ./...        # テスト実行
-go build -o server cmd/server/main.go  # ビルド
+make help            # 利用可能なコマンド一覧を表示
+make run             # サーバー起動
+make build           # ビルド
+make test            # テスト実行
+make lint            # golangci-lintを実行
+make fmt             # コードをフォーマット
+make check           # 全ての静的チェックとテストを実行
+make mod             # go mod tidy実行
+make install-tools   # 開発ツールをインストール
 ```
+
+## 静的検証（Claude Code向け重要事項）
+
+Claude Codeでコードを書いた後は、必ず以下のコマンドを実行して静的検証を行うこと：
+
+### Frontend
+```bash
+cd frontend
+npm run check        # TypeScript型チェック + Biome Lintチェック
+```
+
+### Backend
+```bash
+cd backend
+make check           # フォーマット + go vet + golangci-lint + テスト
+```
+
+これらのコマンドでエラーが出た場合は、必ず修正してからタスクを完了とすること。
 
 ### Docker環境
 ```bash
